@@ -9,7 +9,7 @@
 Basically, at the time of writing there was no feature complete borsh serializer / deserializer implementation available for C++ at all, so this code is an attempt to fill that gap.
 
 ## Current state
-The library isn't ready for production, and the code is published just for building in public.
+The library isn't ready for production, and the code is published just for building in public. It is most definitely isn't tested to be fully byte compatible with Borsh. Please don't use it until it is.
 
 Below is a list of types specified in the Rust specification, with the ones implemented checked:
 - [x] Integers (int8_t, int16_t, int32_t, int64_t, uint8_t, uint16_t, uint32_t, uint64_t, bool)
