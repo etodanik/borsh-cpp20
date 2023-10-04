@@ -1,28 +1,27 @@
 #include "borsh.hpp"
 #include "boost/ut.hpp"
 
-struct Point
+struct Vector2D
 {
     int32_t x;
     int32_t y;
 };
 
-struct Sample
+struct Line
 {
-    int32_t     x;
-    bool        flag;
+    Vector2D    a;
+    Vector2D    b;
     std::string name;
-    Point       subSample;
 };
 
-auto serialize(Point& data, borsh::Serializer& serializer)
+auto serialize(Vector2D& data, borsh::Serializer& serializer)
 {
     return serializer(data.x, data.y);
 }
 
-auto serialize(Sample& sample, borsh::Serializer& serializer)
+auto serialize(Line& data, borsh::Serializer& serializer)
 {
-    return serializer(sample.x, sample.flag, sample.name, sample.subSample);
+    return serializer(data.a, data.b, data.name);
 }
 
 int main()
@@ -142,11 +141,24 @@ int main()
         "struct"_test = [] {
             using namespace borsh;
 
-            Point point{ 10, 20 };
-            auto  buffer = serialize(point);
+            Vector2D point{ 10, 20 };
+            auto     buffer = serialize(point);
             expect(eq(buffer.size(), sizeof(int32_t) * 2));
-            auto deserialized = deserialize<Point>(buffer);
+            auto deserialized = deserialize<Vector2D>(buffer);
             expect(eq(deserialized.x, 10) and eq(deserialized.y, 20));
+        };
+
+        "nested struct"_test = [] {
+            using namespace borsh;
+
+            Line line{ { 5, 10 }, { 15, 25 }, "my line" };
+
+            auto buffer = serialize(line);
+            expect(eq(static_cast<int>(buffer.size()), 27));
+            auto deserialized = deserialize<Line>(buffer);
+            expect(eq(deserialized.a.x, 5) and eq(deserialized.a.y, 10));
+            expect(eq(deserialized.b.x, 15) and eq(deserialized.b.y, 25));
+            expect(eq(deserialized.name, std::string("my line")));
         };
     };
 }
