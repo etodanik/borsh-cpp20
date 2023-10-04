@@ -1,24 +1,24 @@
 #include "borsh.hpp"
 #include "boost/ut.hpp"
 
-struct SubSample
+struct Point
 {
     int32_t x;
     int32_t y;
 };
-
-auto serialize(const SubSample& data, borsh::Serializer& serializer)
-{
-    return serializer(data.x, data.y);
-}
 
 struct Sample
 {
     int32_t     x;
     bool        flag;
     std::string name;
-    SubSample   subSample;
+    Point       subSample;
 };
+
+auto serialize(Point& data, borsh::Serializer& serializer)
+{
+    return serializer(data.x, data.y);
+}
 
 auto serialize(Sample& sample, borsh::Serializer& serializer)
 {
@@ -131,20 +131,21 @@ int main()
         };
 
         "string"_test = [] {
-            //            using namespace borsh;
-            //
-            //            auto serializedString = serialize(std::string("hello"));
-            //            expect(serializedString.size() == 24);
-            //            expect(deserialize<std::string>(serializedString) == "hello");
+            using namespace borsh;
+            auto string = std::string("hello");
+            auto serializedString = serialize(string);
+            expect(eq(static_cast<int>(serializedString.size()), 9));
+            auto deserializedString = deserialize<std::string>(serializedString);
+            expect(eq(deserializedString, string));
         };
 
         "struct"_test = [] {
             using namespace borsh;
 
-            SubSample ss{ 10, 20 };
-            auto      buffer = serialize(ss);
+            Point point{ 10, 20 };
+            auto  buffer = serialize(point);
             expect(eq(buffer.size(), sizeof(int32_t) * 2));
-            auto deserialized = deserialize<SubSample>(buffer);
+            auto deserialized = deserialize<Point>(buffer);
             expect(eq(deserialized.x, 10) and eq(deserialized.y, 20));
         };
     };

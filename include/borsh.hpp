@@ -22,6 +22,8 @@
 #include <stdexcept>
 #include <bit>
 #include <version>
+#include <cstdint>
+#include <algorithm>
 
 namespace borsh
 {
@@ -59,20 +61,21 @@ template <typename T>
 concept Serializable = requires(T t, Serializer& s) { serialize(t, s); };
 
 template <typename T>
-concept SerializableNonScalar = requires(T t, Serializer& s) { serialize(t, s); } && !ScalarType<T>;
+concept SerializableNonScalar = Serializable<T> && !ScalarType<T>;
 
-#ifndef __cpp_lib_byteswap
+template <typename T>
+concept SerializableScalar = Serializable<T> && ScalarType<T>;
+
 template <typename T>
 concept Swappable = IntegralType<T> && std::has_unique_object_representations_v<T>;
 
-// a polyfill of sorts for https://en.cppreference.com/w/cpp/numeric/byteswap coming in C++23
+// a placeholder for https://en.cppreference.com/w/cpp/numeric/byteswap coming in C++23
 constexpr auto byteswap(Swappable auto value) noexcept -> decltype(value)
 {
     auto value_representation = std::bit_cast<std::array<std::byte, sizeof(decltype(value))>>(value);
     std::ranges::reverse(value_representation);
     return bit_cast<decltype(value)>(value_representation);
 }
-#endif
 
 template <typename T> static void append(std::vector<uint8_t>& buffer, const T& value)
 {
@@ -83,24 +86,28 @@ template <typename T> static void append(std::vector<uint8_t>& buffer, const T& 
 
 void to_bytes(IntegralType auto const& value, std::vector<uint8_t>& buffer)
 {
-    // convert to little endian before serializing
     if constexpr (std::endian::native == std::endian::big)
     {
         append(buffer, byteswap(value));
     }
+
     append(buffer, value);
 }
 
 void to_bytes(StringType auto const& value, std::vector<uint8_t>& buffer)
 {
-    append(buffer, value);
+    append(buffer, static_cast<int32_t>(value.length()));
+
+    for (char c : value)
+    {
+        buffer.push_back(static_cast<int8_t>(c));
+    }
 }
 
 template <IntegralType T> void from_bytes(T& value, const uint8_t*& buffer)
 {
     static_assert(!std::is_const_v<T>, "T must not be const");
 
-    // convert from little endian before deserializing
     value = (std::endian::native == std::endian::big) ? byteswap(*reinterpret_cast<const T*>(buffer)) : *reinterpret_cast<const T*>(buffer);
     buffer += sizeof(T);
 }
@@ -109,15 +116,21 @@ template <StringType T> void from_bytes(T& value, const uint8_t*& buffer)
 {
     static_assert(!std::is_const_v<T>, "T must not be const");
 
-    value = *reinterpret_cast<const T*>(buffer);
-    buffer += sizeof(T);
+    int32_t length = *reinterpret_cast<const int32_t*>(buffer);
+    buffer += sizeof(int32_t);
+
+    value.clear();
+    for (int32_t i = 0; i < length; ++i)
+    {
+        value.push_back(static_cast<typename T::value_type>(*(buffer++)));
+    }
 }
 
 class Serializer
 {
 public:
-    explicit Serializer(std::vector<uint8_t>& inBuffer, const uint8_t*& inBufferPointerReference)
-        : buffer(inBuffer), bufferPointerReference(inBufferPointerReference)
+    explicit Serializer(std::vector<uint8_t>& inBuffer, const uint8_t*& inBufferPointerReference, SerializerDirection inDirection)
+        : direction(inDirection), buffer(inBuffer), bufferPointerReference(inBufferPointerReference)
     {
     }
 
@@ -128,57 +141,56 @@ public:
     }
 
 private:
+    SerializerDirection   direction;
     std::vector<uint8_t>& buffer;
     const uint8_t*&       bufferPointerReference;
 
-    void visit(SerializableNonScalar auto& value) { serialize(value, (*this)); }
-
-    template <ScalarType T, std::enable_if_t<std::is_const_v<T>, bool> = true> void visit(T& value) { to_bytes(value, buffer); }
-
-    template <ScalarType T, std::enable_if_t<!std::is_const_v<T>, bool> = true> void visit(T& value)
+    template <typename T> void visit(T& value)
     {
-        from_bytes(value, bufferPointerReference);
+        if (direction == SerializerDirection::Serialize)
+        {
+            if constexpr (ScalarType<T>)
+            {
+                to_bytes(value, buffer);
+            }
+            else
+            {
+                serialize(value, *this);
+            }
+        }
+        else
+        {
+            if constexpr (ScalarType<T>)
+            {
+                from_bytes(value, bufferPointerReference);
+            }
+            else
+            {
+                serialize(value, *this);
+            }
+        }
     }
 };
 
-//    class Deserializer {
-//        const uint8_t *&buf;
-//
-//    public:
-//        constexpr explicit Deserializer(const uint8_t *&buf) : buf(buf) {}
-//
-//        template<typename T>
-//        requires IntegralType<T> || StringType<T>
-//        void operator()(T &value) {
-//            from_bytes(value, buf);
-//        }
-//
-//        template<typename... Ts>
-//        void operator()(Ts &... values) {
-//            (from_bytes(values, buf), ...);
-//        }
-//    };
-
-// serialize for basic types
 template <typename T>
     requires IntegralType<T> || StringType<T>
-auto serialize(const T& value, Serializer& serializer)
+auto serialize(T& value, Serializer& serializer)
 {
     return serializer(value);
 }
 
-//    // from_tuple for basic types
-//    template<typename T>
-//    requires IntegralType<T> || StringType<T>
-//    void from_tuple(T &value, Deserializer &s) {
-//        s(value);
-//    }
+template <ScalarType T> std::vector<uint8_t> serialize(const T& value)
+{
+    std::vector<uint8_t> buffer;
+    to_bytes(value, buffer);
+    return buffer;
+}
 
-template <Serializable T> std::vector<uint8_t> serialize(const T& object)
+template <SerializableNonScalar T> std::vector<uint8_t> serialize(T& object)
 {
     std::vector<uint8_t> buffer;
     const uint8_t*       data = buffer.data();
-    Serializer           serializer(buffer, data);
+    Serializer           serializer(buffer, data, SerializerDirection::Serialize);
     serialize(object, serializer);
     return buffer;
 }
@@ -195,9 +207,8 @@ template <SerializableNonScalar T> T deserialize(std::vector<uint8_t>& buffer)
 {
     const uint8_t* data = buffer.data();
     auto           object = T{};
-    Serializer     serializer(buffer, data);
+    Serializer     serializer(buffer, data, SerializerDirection::Deserialize);
     serialize(object, serializer);
-    // from_tuple(obj, d);
     return object;
 }
 } // namespace borsh
