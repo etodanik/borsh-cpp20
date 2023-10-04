@@ -12,9 +12,10 @@ Basically, at the time of writing there was no feature complete borsh serializer
 The library isn't ready for production, and the code is published just for building in public.
 
 Below is a list of types specified in the Rust specification, with the ones implemented checked:
-- [x] Integers
+- [x] Integers (int8_t, int16_t, int32_t, int64_t, uint8_t, uint16_t, uint32_t, uint64_t, bool)
+- [x] Bool
 - [ ] Floats
-- [ ] Unit (std::monostate)
+- [ ] Unit (std::monostate), a noop in Borsh
 - [ ] Fixed sized arrays
 - [ ] Dynamic sized array (std::vector)
 - [x] Struct
