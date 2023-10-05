@@ -19,19 +19,21 @@ it is.
 Below is a list of types specified in the Rust specification, with the ones implemented checked. Every checked type is
 tested to be binary compatible with the borsh specification:
 
-- [x] Integers (int8_t, int16_t, int32_t, int64_t, uint8_t, uint16_t, uint32_t, uint64_t, bool)
+- [x] 
+  Integers (`int8_t`, `int16_t`, `int32_t`, `int64_t`, `__int128`, `uint8_t`, `uint16_t`, `uint32_t`, `uint64_t`, `unsigned __int128`,
+  `bool`)
 - [x] Bool
-- [ ] Floats
-- [ ] Unit (std::monostate), a noop in Borsh
+- [x] Floats (`float`, `double`, `long double`)
+- [ ] Unit (`std::monostate`), a noop in Borsh
 - [ ] Fixed sized arrays
-- [ ] Dynamic sized array (std::vector)
+- [ ] Dynamic sized array (`std::vector`)
 - [x] Struct
 - [x] Named fields
 - [ ] Enum
-- [ ] HashMap (std::unordered_map)
-- [ ] HashSet (std::unordered_set)
-- [ ] Option (std::optional)
-- [x] String (std::string)
+- [ ] HashMap (`std::unordered_map`)
+- [ ] HashSet (`std::unordered_set`)
+- [ ] Option (`std::optional`)
+- [x] String (`std::string`)
 
 The following types don't have a direct equivalent in C++:
 

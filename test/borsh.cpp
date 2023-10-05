@@ -64,9 +64,16 @@ int main()
             static_assert(Serializable<uint32_t>);
             static_assert(Serializable<uint64_t>);
 
-            //            static_assert(Serializable<float>);
-            //            static_assert(Serializable<double>);
-            //            static_assert(Serializable<long double>);
+#ifdef __SIZEOF_INT128__
+            static_assert(Serializable<int128_t>);
+            static_assert(Serializable<uint128_t>);
+#endif
+
+            static_assert(Serializable<float>);
+            static_assert(Serializable<double>);
+#ifdef __SIZEOF_INT128__
+            static_assert(Serializable<long double>);
+#endif
 
             static_assert(Serializable<std::string>);
 
@@ -140,6 +147,52 @@ int main()
             expect(eq(serializedMin64,
                 std::vector<uint8_t>{ 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b10000000 }));
             expect(eq(deserialize<int64_t>(serializedMin64), INT64_MIN));
+
+#ifdef __SIZEOF_INT128__
+            int128_t max128 = INT128_MAX;
+            int128_t min128 = INT128_MIN;
+
+            auto serializedMax128 = serialize(max128);
+            expect(serializedMax128.size() == sizeof(int128_t));
+            expect(serializedMax128
+                == std::vector<uint8_t>{ 0b11111111, 0b11111111, 0b11111111, 0b11111111, 0b11111111, 0b11111111, 0b11111111, 0b11111111,
+                    0b11111111, 0b11111111, 0b11111111, 0b11111111, 0b11111111, 0b11111111, 0b11111111, 0b01111111 });
+            expect(deserialize<int128_t>(serializedMax128) == INT128_MAX);
+
+            auto serializedMin128 = serialize(min128);
+            expect(serializedMin128.size() == sizeof(int128_t));
+            expect(serializedMin128
+                == std::vector<uint8_t>{ 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000,
+                    0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b10000000 });
+            expect(deserialize<int128_t>(serializedMin128) == INT128_MIN);
+#endif
+        };
+
+        "float"_test = [] {
+            float floatValue = 3.1415927;
+            auto  serializedFloat = serialize(floatValue);
+            expect(eq(serializedFloat.size(), sizeof(float)));
+            expect(eq(serializedFloat, std::vector<uint8_t>{ 0b11011011, 0b00001111, 0b01001001, 0b01000000 }));
+            auto deserializedFloat = deserialize<float>(serializedFloat);
+            expect(eq(deserializedFloat, floatValue));
+
+            double doubleValue = 3.141592653589793;
+            auto   serializedDouble = serialize(doubleValue);
+            expect(eq(serializedDouble.size(), sizeof(double)));
+            expect(eq(serializedDouble,
+                std::vector<uint8_t>{ 0b00011000, 0b00101101, 0b01000100, 0b01010100, 0b11111011, 0b00100001, 0b00001001, 0b01000000 }));
+            auto deserializedDouble = deserialize<double>(serializedDouble);
+            expect(eq(deserializedDouble, doubleValue));
+
+#ifdef __SIZEOF_INT128__
+            long double longDoubleValue = 3.1415926535897932385;
+            auto        serializedLongDouble = serialize(longDoubleValue);
+            expect(eq(serializedLongDouble.size(), sizeof(long double)));
+            expect(eq(serializedDouble,
+                std::vector<uint8_t>{ 0b00011000, 0b00101101, 0b01000100, 0b01010100, 0b11111011, 0b00100001, 0b00001001, 0b01000000 }));
+            auto deserializedLongDouble = deserialize<long double>(serializedLongDouble);
+            expect(eq(deserializedLongDouble, longDoubleValue));
+#endif
         };
 
         "boolean"_test = [] {
@@ -162,10 +215,11 @@ int main()
             auto serializedString = serialize(string);
             expect(eq(static_cast<int>(serializedString.size()), 14));
             expect(eq(serializedString,
-                std::vector<uint8_t>{
-                    0b00001010, 0b00000000, 0b00000000, 0b00000000, // int32_t representation of the string length (little endian)
-                    0x68, 0x65, 0x6c, 0x6c, 0x6f, 0x20, 0xf0, 0x9f, 0x9a, 0x80 // utf-8 string
-                }));
+                std::vector<uint8_t>{ //
+                    // int32_t representation of the string length (little endian)
+                    0b00001010, 0b00000000, 0b00000000, 0b00000000,
+                    // utf-8 string
+                    0x68, 0x65, 0x6c, 0x6c, 0x6f, 0x20, 0xf0, 0x9f, 0x9a, 0x80 }));
 
             auto deserializedString = deserialize<std::string>(serializedString);
             expect(eq(deserializedString, string));

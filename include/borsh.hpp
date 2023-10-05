@@ -15,15 +15,25 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //
 
-#include <tuple>
 #include <vector>
 #include <type_traits>
 #include <string>
 #include <stdexcept>
 #include <bit>
-#include <version>
 #include <cstdint>
 #include <algorithm>
+
+#ifdef __SIZEOF_INT128__
+using uint128_t = unsigned __int128;
+using int128_t = __int128;
+
+#ifndef UINT128_MAX
+#define UINT128_MAX ((uint128_t)(-1))
+#define INT128_MAX ((int128_t)(UINT128_MAX >> 1))
+#define INT128_MIN (-INT128_MAX - 1)
+#endif
+
+#endif
 
 namespace borsh
 {
@@ -46,13 +56,23 @@ template <typename T>
 concept IntegralType = std::is_integral_v<T>;
 
 template <typename T>
+#ifdef __SIZEOF_INT128__
+concept FloatType = std::is_floating_point_v<T>;
+#else
+concept FloatType = std::is_same_v<T, float> || std::is_same_v<T, double>;
+#endif
+
+template <typename T>
+concept NumericType = IntegralType<T> || FloatType<T>;
+
+template <typename T>
 concept StringType = std::is_same_v<T, std::string>;
 
 template <typename T>
 concept CharArrayType = is_bounded_char_array_v<T>;
 
 template <typename T>
-concept ScalarType = IntegralType<T> || StringType<T>;
+concept ScalarType = NumericType<T> || StringType<T>;
 
 template <typename T>
 concept ArrayType = CharArrayType<T>;
@@ -68,6 +88,58 @@ concept SerializableScalar = Serializable<T> && ScalarType<T>;
 
 template <typename T>
 concept Swappable = IntegralType<T> && std::has_unique_object_representations_v<T>;
+
+template <FloatType T> auto float_to_int(T value) -> auto
+{
+    if constexpr (std::is_same_v<T, float> && sizeof(float) == sizeof(int32_t))
+    {
+        return std::bit_cast<int32_t>(value);
+    }
+    else if constexpr (std::is_same_v<T, double> && sizeof(double) == sizeof(int64_t))
+    {
+        return std::bit_cast<int64_t>(value);
+    }
+    else if constexpr (std::is_same_v<T, long double>)
+    {
+        if constexpr (sizeof(long double) == sizeof(int128_t))
+        {
+            return std::bit_cast<int128_t>(value);
+        }
+        else if constexpr (sizeof(long double) == sizeof(int64_t))
+        {
+            return std::bit_cast<int64_t>(value);
+        }
+        else
+        {
+            static_assert(!std::is_same_v<T, T>, "Float on this target platform is of an unsupported length");
+        }
+    }
+    else
+    {
+        static_assert(!std::is_same_v<T, T>, "Unsupported type for float_to_int or type is a non standard length on target platform");
+    }
+}
+
+template <IntegralType T> auto int_to_float(T value) -> auto
+{
+    if constexpr (std::is_same_v<T, int32_t> && sizeof(float) == sizeof(int32_t))
+    {
+        return std::bit_cast<float>(value);
+    }
+    else if constexpr (std::is_same_v<T, int64_t> && sizeof(double) == sizeof(int64_t))
+    {
+        return std::bit_cast<double>(value);
+    }
+    else if constexpr (std::is_same_v<T, long double>
+        && ((sizeof(long double) == sizeof(int64_t)) || (sizeof(long double) == sizeof(int128_t))))
+    {
+        return std::bit_cast<long double>(value);
+    }
+    else
+    {
+        static_assert(!std::is_same_v<T, T>, "Unsupported type for int_to_float or type is a non standard length on target platform");
+    }
+}
 
 // a placeholder for https://en.cppreference.com/w/cpp/numeric/byteswap coming in C++23
 constexpr auto byteswap(Swappable auto value) noexcept -> decltype(value)
@@ -94,6 +166,21 @@ void to_bytes(IntegralType auto const& value, std::vector<uint8_t>& buffer)
     append(buffer, value);
 }
 
+void to_bytes(FloatType auto const& value, std::vector<uint8_t>& buffer)
+{
+    if (isnan(value))
+    {
+        throw std::invalid_argument("NaN is not allowed");
+    }
+
+    if constexpr (std::endian::native == std::endian::big)
+    {
+        append(buffer, byteswap(float_to_int(value)));
+    }
+
+    append(buffer, float_to_int(value));
+}
+
 void to_bytes(StringType auto const& value, std::vector<uint8_t>& buffer)
 {
     append(buffer, static_cast<int32_t>(value.length()));
@@ -104,11 +191,20 @@ void to_bytes(StringType auto const& value, std::vector<uint8_t>& buffer)
     }
 }
 
-template <IntegralType T> void from_bytes(T& value, const uint8_t*& buffer)
+template <NumericType T> void from_bytes(T& value, const uint8_t*& buffer)
 {
     static_assert(!std::is_const_v<T>, "T must not be const");
 
     value = (std::endian::native == std::endian::big) ? byteswap(*reinterpret_cast<const T*>(buffer)) : *reinterpret_cast<const T*>(buffer);
+    buffer += sizeof(T);
+}
+
+template <FloatType T> void from_bytes(T& value, const uint8_t*& buffer)
+{
+    static_assert(!std::is_const_v<T>, "T must not be const");
+
+    value = (std::endian::native == std::endian::big) ? int_to_float(byteswap(float_to_int(*reinterpret_cast<const T*>(buffer))))
+                                                      : *reinterpret_cast<const T*>(buffer);
     buffer += sizeof(T);
 }
 
@@ -173,7 +269,7 @@ private:
 };
 
 template <typename T>
-    requires IntegralType<T> || StringType<T>
+    requires ScalarType<T>
 auto serialize(T& value, Serializer& serializer)
 {
     return serializer(value);
