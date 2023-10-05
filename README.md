@@ -3,15 +3,22 @@
 </p>
 
 # Borsh for C++20
+
 `borsh-cpp20` is an implementation of the borsh serialization specification for C++20.
 
 ## Motivation
-Basically, at the time of writing there was no feature complete borsh serializer / deserializer implementation available for C++ at all, so this code is an attempt to fill that gap.
+
+Basically, at the time of writing there was no feature complete borsh serializer / deserializer implementation available
+for C++ at all, so this code is an attempt to fill that gap.
 
 ## Current state
-The library isn't ready for production, and the code is published just for building in public. It is most definitely isn't tested to be fully byte compatible with Borsh. Please don't use it until it is.
 
-Below is a list of types specified in the Rust specification, with the ones implemented checked:
+The library isn't ready for production, and the code is published just for building in public. Please don't use it until
+it is.
+
+Below is a list of types specified in the Rust specification, with the ones implemented checked. Every checked type is
+tested to be binary compatible with the borsh specification:
+
 - [x] Integers (int8_t, int16_t, int32_t, int64_t, uint8_t, uint16_t, uint32_t, uint64_t, bool)
 - [x] Bool
 - [ ] Floats
@@ -27,4 +34,5 @@ Below is a list of types specified in the Rust specification, with the ones impl
 - [x] String (std::string)
 
 The following types don't have a direct equivalent in C++:
+
 - Unnamed fields
