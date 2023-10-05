@@ -64,6 +64,10 @@ int main()
             static_assert(Serializable<uint32_t>);
             static_assert(Serializable<uint64_t>);
 
+            //            static_assert(Serializable<float>);
+            //            static_assert(Serializable<double>);
+            //            static_assert(Serializable<long double>);
+
             static_assert(Serializable<std::string>);
 
             // TODO: Implement character arrays
@@ -85,38 +89,56 @@ int main()
 
             int8_t max8 = INT8_MAX;
             int8_t min8 = INT8_MIN;
-            auto   serializedMax8 = serialize(max8);
+
+            auto serializedMax8 = serialize(max8);
             expect(eq(serializedMax8.size(), sizeof(int8_t)));
+            expect(eq(serializedMax8, std::vector<uint8_t>{ 0b01111111 }));
             expect(eq(deserialize<int8_t>(serializedMax8), INT8_MAX));
+
             auto serializedMin8 = serialize(min8);
             expect(eq(serializedMin8.size(), sizeof(int8_t)));
+            expect(eq(serializedMin8, std::vector<uint8_t>{ 0b10000000 }));
             expect(eq(deserialize<int8_t>(serializedMin8), INT8_MIN));
 
             int16_t max16 = INT16_MAX;
             int16_t min16 = INT16_MIN;
-            auto    serializedMax16 = serialize(max16);
+
+            auto serializedMax16 = serialize(max16);
             expect(eq(serializedMax16.size(), sizeof(int16_t)));
+            expect(eq(serializedMax16, std::vector<uint8_t>{ 0b11111111, 0b01111111 }));
             expect(eq(deserialize<int16_t>(serializedMax16), INT16_MAX));
+
             auto serializedMin16 = serialize(min16);
             expect(eq(serializedMin16.size(), sizeof(int16_t)));
+            expect(eq(serializedMin16, std::vector<uint8_t>{ 0b00000000, 0b10000000 }));
             expect(eq(deserialize<int16_t>(serializedMin16), INT16_MIN));
 
             int32_t max32 = INT32_MAX;
             int32_t min32 = INT32_MIN;
-            auto    serializedMax32 = serialize(max32);
+
+            auto serializedMax32 = serialize(max32);
             expect(eq(serializedMax32.size(), sizeof(int32_t)));
+            expect(eq(serializedMax32, std::vector<uint8_t>{ 0b11111111, 0b11111111, 0b11111111, 0b01111111 }));
             expect(eq(deserialize<int32_t>(serializedMax32), INT32_MAX));
+
             auto serializedMin32 = serialize(min32);
             expect(eq(serializedMin32.size(), sizeof(int32_t)));
+            expect(eq(serializedMin32, std::vector<uint8_t>{ 0b00000000, 0b00000000, 0b00000000, 0b10000000 }));
             expect(eq(deserialize<int32_t>(serializedMin32), INT32_MIN));
 
             int64_t max64 = INT64_MAX;
             int64_t min64 = INT64_MIN;
-            auto    serializedMax64 = serialize(max64);
+
+            auto serializedMax64 = serialize(max64);
             expect(eq(serializedMax64.size(), sizeof(int64_t)));
+            expect(eq(serializedMax64,
+                std::vector<uint8_t>{ 0b11111111, 0b11111111, 0b11111111, 0b11111111, 0b11111111, 0b11111111, 0b11111111, 0b01111111 }));
             expect(eq(deserialize<int64_t>(serializedMax64), INT64_MAX));
+
             auto serializedMin64 = serialize(min64);
             expect(eq(serializedMin64.size(), sizeof(int64_t)));
+            expect(eq(serializedMin64,
+                std::vector<uint8_t>{ 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b10000000 }));
             expect(eq(deserialize<int64_t>(serializedMin64), INT64_MIN));
         };
 
@@ -125,15 +147,26 @@ int main()
 
             auto serializedTrue = serialize(true);
             auto serializedFalse = serialize(false);
-            expect(eq(serializedTrue.size(), sizeof(bool)) and eq(deserialize<bool>(serializedTrue), true));
-            expect(eq(serializedFalse.size(), sizeof(bool)) and eq(deserialize<bool>(serializedFalse), false));
+
+            expect(eq(serializedTrue.size(), sizeof(bool)) and eq(deserialize<bool>(serializedTrue), true)
+                and eq(serializedTrue, std::vector<uint8_t>{ 0x00000001 }));
+            expect(eq(serializedFalse.size(), sizeof(bool)) and eq(deserialize<bool>(serializedFalse), false)
+                and eq(serializedFalse, std::vector<uint8_t>{ 0x00000000 }));
         };
 
         "string"_test = [] {
             using namespace borsh;
-            auto string = std::string("hello");
+
+            auto string = std::string("hello 🚀");
+
             auto serializedString = serialize(string);
-            expect(eq(static_cast<int>(serializedString.size()), 9));
+            expect(eq(static_cast<int>(serializedString.size()), 14));
+            expect(eq(serializedString,
+                std::vector<uint8_t>{
+                    0b00001010, 0b00000000, 0b00000000, 0b00000000, // int32_t representation of the string length (little endian)
+                    0x68, 0x65, 0x6c, 0x6c, 0x6f, 0x20, 0xf0, 0x9f, 0x9a, 0x80 // utf-8 string
+                }));
+
             auto deserializedString = deserialize<std::string>(serializedString);
             expect(eq(deserializedString, string));
         };
@@ -162,48 +195,3 @@ int main()
         };
     };
 }
-
-//
-// TEST_CASE("integers") {
-
-//}
-//
-// TEST_CASE("boolean") {
-
-//}
-//
-////TEST_CASE("string") {
-
-////}
-//
-// TEST_CASE("struct") {
-//    using namespace borsh;
-//
-//    SubSample ss{10, 20};
-//    auto buffer = serialize(ss);
-//    auto deserialized = deserialize<SubSample>(buffer);
-//    expect(deserialized.x == 10);
-//    expect(deserialized.y == 20);
-//}
-//
-// TEST_CASE("integers") {
-////    auto buffer = serialize(42);
-////    std::cout << "Serialized int size: " << buffer.size() << std::endl;
-//
-//    using namespace borsh;
-//
-//    SubSample ss{10, 20};
-//    Sample s{42, true, "hello", ss};
-//
-//    auto buffer = serialize(s);
-//
-////    auto deserialized = deserialize<Sample>(buffer);
-////
-////    expect(deserialized.x == 42);
-////    expect(deserialized.flag == true);
-////    expect(deserialized.name == "hello");
-//
-//    std::cout << "Serialized struct size: " << buffer.size() << std::endl;
-//
-//    // ... Use buffer as needed.
-//}
