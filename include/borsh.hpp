@@ -15,6 +15,9 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //
 
+#include <array>
+#include <cstddef>
+#include <cstring>
 #include <vector>
 #include <type_traits>
 #include <string>
@@ -39,18 +42,11 @@ namespace borsh
 {
 class Serializer;
 
-class Deserializer;
-
 enum SerializerDirection
 {
     Serialize = 0,
     Deserialize = 1,
 };
-
-template <typename T>
-inline constexpr bool is_bounded_char_array_v = std::rank_v<T> == 1 && std::extent_v<T> != 0
-    && (std::is_same_v<std::remove_extent_t<std::remove_cv_t<T>>, char>
-        || std::is_same_v<std::remove_extent_t<std::remove_cv_t<T>>, unsigned char>);
 
 template <typename T>
 concept IntegralType = std::is_integral_v<T>;
@@ -69,22 +65,55 @@ template <typename T>
 concept StringType = std::is_same_v<T, std::string>;
 
 template <typename T>
-concept CharArrayType = is_bounded_char_array_v<T>;
-
-template <typename T>
 concept ScalarType = NumericType<T> || StringType<T>;
 
 template <typename T>
-concept ArrayType = CharArrayType<T>;
+concept is_bounded_array_v = std::rank_v<T> == 1 && std::extent_v<T> != 0;
+
+template <typename T> using remove_extent_and_cv_t = std::remove_extent_t<std::remove_cv_t<T>>;
+
+template <typename T, typename C>
+concept is_same_remove_extent_v = std::is_same_v<remove_extent_and_cv_t<T>, C>;
 
 template <typename T>
-concept Serializable = requires(T t, Serializer& s) { serialize(t, s); };
+concept CharArrayType = is_bounded_array_v<T> && (is_same_remove_extent_v<T, char> || is_same_remove_extent_v<T, unsigned char>);
 
 template <typename T>
-concept SerializableNonScalar = Serializable<T> && !ScalarType<T>;
+concept IntegralArrayType = is_bounded_array_v<T> && IntegralType<remove_extent_and_cv_t<T>>;
 
 template <typename T>
-concept SerializableScalar = Serializable<T> && ScalarType<T>;
+concept FloatArrayType = is_bounded_array_v<T> && FloatType<remove_extent_and_cv_t<T>>;
+
+template <typename T>
+concept NumericArrayType = IntegralArrayType<T> || FloatArrayType<T>;
+
+template <typename T>
+concept ScalarArrayType = is_bounded_array_v<T> && ScalarType<remove_extent_and_cv_t<T>>;
+
+template <typename T>
+concept NonScalarArrayType = is_bounded_array_v<T> && !ScalarType<remove_extent_and_cv_t<T>>;
+
+template <typename T>
+concept ArrayType = ScalarArrayType<T> || NonScalarArrayType<T>;
+
+template <typename T>
+concept SerializableElement = requires(T t, Serializer& s) { serialize(t, s); };
+
+template <typename T>
+concept SerializableArray =
+    requires(T (&array)[], Serializer& s) { serialize(array, s); } && SerializableElement<remove_extent_and_cv_t<T>>;
+
+template <typename T>
+concept Serializable = SerializableElement<T> || SerializableArray<T>;
+
+template <typename T>
+concept SerializableNonScalar = SerializableElement<T> && !ScalarType<T>;
+
+template <typename T>
+concept SerializableNonScalarArray = SerializableArray<T> && !ScalarType<remove_extent_and_cv_t<T>>;
+
+template <typename T>
+concept SerializableScalar = SerializableElement<T> && ScalarType<T>;
 
 template <typename T>
 concept Swappable = IntegralType<T> && std::has_unique_object_representations_v<T>;
@@ -168,7 +197,7 @@ void to_bytes(IntegralType auto const& value, std::vector<uint8_t>& buffer)
 
 void to_bytes(FloatType auto const& value, std::vector<uint8_t>& buffer)
 {
-    if (isnan(value))
+    if (isnan(value)) [[unlikely]]
     {
         throw std::invalid_argument("NaN is not allowed");
     }
@@ -188,6 +217,14 @@ void to_bytes(StringType auto const& value, std::vector<uint8_t>& buffer)
     for (char c : value)
     {
         buffer.push_back(static_cast<int8_t>(c));
+    }
+}
+
+void to_bytes(ScalarArrayType auto const& array, std::vector<uint8_t>& buffer)
+{
+    for (auto item : array)
+    {
+        to_bytes(item, buffer);
     }
 }
 
@@ -212,13 +249,23 @@ template <StringType T> void from_bytes(T& value, const uint8_t*& buffer)
 {
     static_assert(!std::is_const_v<T>, "T must not be const");
 
-    int32_t length = *reinterpret_cast<const int32_t*>(buffer);
+    const int32_t length = *reinterpret_cast<const int32_t*>(buffer);
     buffer += sizeof(int32_t);
 
     value.clear();
     for (int32_t i = 0; i < length; ++i)
     {
         value.push_back(static_cast<typename T::value_type>(*(buffer++)));
+    }
+}
+
+template <ScalarType T, std::size_t N> void from_bytes(T (&value)[N], const uint8_t*& buffer)
+{
+    static_assert(!std::is_const_v<decltype(value)>, "T must not be const");
+
+    for (auto& element : value)
+    {
+        from_bytes(element, buffer);
     }
 }
 
@@ -237,15 +284,42 @@ public:
     }
 
 private:
-    SerializerDirection   direction;
-    std::vector<uint8_t>& buffer;
-    const uint8_t*&       bufferPointerReference;
+    const SerializerDirection direction;
+    std::vector<uint8_t>&     buffer;
+    const uint8_t*&           bufferPointerReference;
+
+    /**
+     * This handles the execution path for the compiler where a const variable was passed to serialize().
+     * Normally, the compiler would not have access to `direction` at compile-time, therefore trying to
+     * explore the deserialization code path and returning a variety of errors. This helps prevent that
+     * and offloads the undesirable situation to an exception.
+     * @tparam T
+     * @param value
+     */
+    template <typename T> void visit(const T& value)
+    {
+        if (direction == SerializerDirection::Serialize)
+        {
+            if constexpr (ScalarType<T> || ScalarArrayType<T>)
+            {
+                to_bytes(value, buffer);
+            }
+            else
+            {
+                serialize(value, *this);
+            }
+        }
+        else [[unlikely]]
+        {
+            throw std::runtime_error("Cannot deserialize into a const object");
+        }
+    }
 
     template <typename T> void visit(T& value)
     {
         if (direction == SerializerDirection::Serialize)
         {
-            if constexpr (ScalarType<T>)
+            if constexpr (ScalarType<T> || ScalarArrayType<T>)
             {
                 to_bytes(value, buffer);
             }
@@ -256,7 +330,7 @@ private:
         }
         else
         {
-            if constexpr (ScalarType<T>)
+            if constexpr (ScalarType<T> || ScalarArrayType<T>)
             {
                 from_bytes(value, bufferPointerReference);
             }
@@ -268,14 +342,19 @@ private:
     }
 };
 
-template <typename T>
-    requires ScalarType<T>
-auto serialize(T& value, Serializer& serializer)
+auto serialize(ArrayType auto (&array)[], Serializer& serializer)
+{
+    return serializer(array);
+}
+
+auto serialize(ScalarType auto& value, Serializer& serializer)
 {
     return serializer(value);
 }
 
-template <ScalarType T> std::vector<uint8_t> serialize(const T& value)
+template <typename T>
+    requires ScalarType<T> || ScalarArrayType<T>
+std::vector<uint8_t> serialize(const T& value)
 {
     std::vector<uint8_t> buffer;
     to_bytes(value, buffer);
@@ -291,12 +370,31 @@ template <SerializableNonScalar T> std::vector<uint8_t> serialize(T& object)
     return buffer;
 }
 
-template <ScalarType T> T deserialize(std::vector<uint8_t>& buffer)
+std::vector<uint8_t> serialize(SerializableNonScalarArray auto (&array)[])
+{
+    std::vector<uint8_t> buffer;
+    const uint8_t*       data = buffer.data();
+    Serializer           serializer(buffer, data, SerializerDirection::Serialize);
+    serialize(array, serializer);
+    return buffer;
+}
+
+template <typename T>
+    requires ScalarType<T>
+T deserialize(std::vector<uint8_t>& buffer)
 {
     const uint8_t* data = buffer.data();
     T              value;
     from_bytes(value, data);
     return value;
+}
+
+template <typename T, std::size_t N>
+    requires ScalarType<T>
+void deserialize(T (&value)[N], std::vector<uint8_t>& buffer)
+{
+    const uint8_t* data = buffer.data();
+    from_bytes(value, data);
 }
 
 template <SerializableNonScalar T> T deserialize(std::vector<uint8_t>& buffer)
@@ -307,4 +405,12 @@ template <SerializableNonScalar T> T deserialize(std::vector<uint8_t>& buffer)
     serialize(object, serializer);
     return object;
 }
+
+void deserialize(SerializableNonScalarArray auto (&value)[], std::vector<uint8_t>& buffer)
+{
+    const uint8_t* data = buffer.data();
+    Serializer     serializer(buffer, data, SerializerDirection::Deserialize);
+    serialize(value, serializer);
+}
+
 } // namespace borsh

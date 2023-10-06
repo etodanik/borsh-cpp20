@@ -1,3 +1,8 @@
+#include <algorithm>
+#include <cstdint>
+#include <vector>
+#include <string>
+
 #include "borsh.hpp"
 #include "boost/ut.hpp"
 
@@ -31,15 +36,15 @@ int main()
 
     "custom concepts"_test = [] {
         "should all pass asserts"_test = [] {
-            static_assert(is_bounded_char_array_v<char[10]>);
-            static_assert(is_bounded_char_array_v<const char[15]>);
-            static_assert(!is_bounded_char_array_v<char[]>);
-            static_assert(!is_bounded_char_array_v<const char[]>);
+            static_assert(ArrayType<char[10]>);
+            static_assert(ArrayType<const char[15]>);
+            static_assert(!ArrayType<char[]>);
+            static_assert(!ArrayType<const char[]>);
 
-            static_assert(is_bounded_char_array_v<unsigned char[10]>);
-            static_assert(is_bounded_char_array_v<const unsigned char[15]>);
-            static_assert(!is_bounded_char_array_v<unsigned char[]>);
-            static_assert(!is_bounded_char_array_v<const unsigned char[]>);
+            static_assert(ArrayType<unsigned char[10]>);
+            static_assert(ArrayType<const unsigned char[15]>);
+            static_assert(!ArrayType<unsigned char[]>);
+            static_assert(!ArrayType<const unsigned char[]>);
 
             static_assert(StringType<std::string>);
 
@@ -53,49 +58,35 @@ int main()
             static_assert(!StringType<unsigned char[]>);
             static_assert(!StringType<const unsigned char[]>);
 
-            static_assert(Serializable<int8_t>);
-            static_assert(Serializable<int16_t>);
-            static_assert(Serializable<int32_t>);
-            static_assert(Serializable<int64_t>);
-            static_assert(Serializable<bool>);
+            static_assert(Serializable<char[10]>);
+            static_assert(Serializable<const char[15]>);
+            static_assert(!Serializable<char[]>);
+            static_assert(!Serializable<const char[]>);
 
-            static_assert(Serializable<uint8_t>);
-            static_assert(Serializable<uint16_t>);
-            static_assert(Serializable<uint32_t>);
-            static_assert(Serializable<uint64_t>);
-
-#ifdef __SIZEOF_INT128__
-            static_assert(Serializable<int128_t>);
-            static_assert(Serializable<uint128_t>);
-#endif
-
-            static_assert(Serializable<float>);
-            static_assert(Serializable<double>);
-#ifdef __SIZEOF_INT128__
-            static_assert(Serializable<long double>);
-#endif
-
-            static_assert(Serializable<std::string>);
-
-            // TODO: Implement character arrays
-            //    static_assert(Serializable<char[10]>);
-            //    static_assert(Serializable<const char[15]>);
-            //    static_assert(!Serializable<char[]>);
-            //    static_assert(!Serializable<const char[]>);
-            //
-            //    static_assert(Serializable<unsigned char[10]>);
-            //    static_assert(Serializable<const unsigned char[15]>);
-            //    static_assert(!Serializable<unsigned char[]>);
-            //    static_assert(!Serializable<const unsigned char[]>);
+            static_assert(Serializable<unsigned char[10]>);
+            static_assert(Serializable<const unsigned char[15]>);
+            static_assert(!Serializable<unsigned char[]>);
+            static_assert(!Serializable<const unsigned char[]>);
         };
     };
 
     "types"_test = [] {
         "integers"_test = [] {
-            using namespace borsh;
+            static_assert(Serializable<int8_t>);
+            static_assert(Serializable<int16_t>);
+            static_assert(Serializable<int32_t>);
+            static_assert(Serializable<int64_t>);
+            static_assert(Serializable<uint8_t>);
+            static_assert(Serializable<uint16_t>);
+            static_assert(Serializable<uint32_t>);
+            static_assert(Serializable<uint64_t>);
+#ifdef __SIZEOF_INT128__
+            static_assert(Serializable<int128_t>);
+            static_assert(Serializable<uint128_t>);
+#endif
 
-            int8_t max8 = INT8_MAX;
-            int8_t min8 = INT8_MIN;
+            const int8_t max8 = INT8_MAX;
+            const int8_t min8 = INT8_MIN;
 
             auto serializedMax8 = serialize(max8);
             expect(eq(serializedMax8.size(), sizeof(int8_t)));
@@ -169,6 +160,12 @@ int main()
         };
 
         "float"_test = [] {
+            static_assert(Serializable<float>);
+            static_assert(Serializable<double>);
+#ifdef __SIZEOF_INT128__
+            static_assert(Serializable<long double>);
+#endif
+
             float floatValue = 3.1415927;
             auto  serializedFloat = serialize(floatValue);
             expect(eq(serializedFloat.size(), sizeof(float)));
@@ -184,7 +181,6 @@ int main()
             auto deserializedDouble = deserialize<double>(serializedDouble);
             expect(eq(deserializedDouble, doubleValue));
 
-#ifdef __SIZEOF_INT128__
             long double longDoubleValue = 3.1415926535897932385;
             auto        serializedLongDouble = serialize(longDoubleValue);
             expect(eq(serializedLongDouble.size(), sizeof(long double)));
@@ -192,11 +188,10 @@ int main()
                 std::vector<uint8_t>{ 0b00011000, 0b00101101, 0b01000100, 0b01010100, 0b11111011, 0b00100001, 0b00001001, 0b01000000 }));
             auto deserializedLongDouble = deserialize<long double>(serializedLongDouble);
             expect(eq(deserializedLongDouble, longDoubleValue));
-#endif
         };
 
-        "boolean"_test = [] {
-            using namespace borsh;
+        "bool"_test = [] {
+            static_assert(Serializable<bool>);
 
             auto serializedTrue = serialize(true);
             auto serializedFalse = serialize(false);
@@ -208,7 +203,7 @@ int main()
         };
 
         "string"_test = [] {
-            using namespace borsh;
+            static_assert(Serializable<std::string>);
 
             auto string = std::string("hello 🚀");
 
@@ -226,7 +221,7 @@ int main()
         };
 
         "struct"_test = [] {
-            using namespace borsh;
+            static_assert(Serializable<Vector2D>);
 
             Vector2D point{ 10, 20 };
             auto     buffer = serialize(point);
@@ -236,7 +231,7 @@ int main()
         };
 
         "nested struct"_test = [] {
-            using namespace borsh;
+            static_assert(Serializable<Line>);
 
             Line line{ { 5, 10 }, { 15, 25 }, "my line" };
 
@@ -247,5 +242,56 @@ int main()
             expect(eq(deserialized.b.x, 15) and eq(deserialized.b.y, 25));
             expect(eq(deserialized.name, std::string("my line")));
         };
+
+        "bounded c style array of integers"_test = [] {
+            static_assert(Serializable<uint32_t[10]>);
+            static_assert(Serializable<const uint32_t[15]>);
+            static_assert(!Serializable<uint32_t[]>);
+            static_assert(!Serializable<const uint32_t[]>);
+
+            const int32_t array[] = { 15, -20, 10, 3435, -4011 };
+            int32_t       deserializedArray[5];
+
+            auto serializedArray = serialize(array);
+            expect(eq(serializedArray.size(), sizeof(int32_t) * 5));
+            expect(eq(serializedArray,
+                std::vector<uint8_t>{
+                    0b00001111,
+                    0b00000000,
+                    0b00000000,
+                    0b00000000,
+                    0b11101100,
+                    0b11111111,
+                    0b11111111,
+                    0b11111111,
+                    0b00001010,
+                    0b00000000,
+                    0b00000000,
+                    0b00000000,
+                    0b01101011,
+                    0b00001101,
+                    0b00000000,
+                    0b00000000,
+                    0b01010101,
+                    0b11110000,
+                    0b11111111,
+                    0b11111111,
+                }));
+            deserialize(deserializedArray, serializedArray);
+            expect(std::equal(std::begin(array), std::end(array), std::begin(deserializedArray)));
+        };
+
+        //        "bounded c style array of structs"_test = [] {
+        //            static_assert(Serializable<Vector2D[2]>);
+        //            static_assert(!Serializable<Vector2D[]>);
+        //
+        //            Vector2D array[] = { { 5, 10 }, { 15, 25 } };
+        //            Vector2D deserializedArray[2];
+        //
+        //            auto serializedArray = serialize(array);
+        //            expect(eq(serializedArray.size(), sizeof(int32_t) * 4));
+        //            deserialize(deserializedArray, serializedArray);
+        //            // expect(std::equal(std::begin(array), std::end(array), std::begin(deserializedArray)));
+        //        };
     };
 }
