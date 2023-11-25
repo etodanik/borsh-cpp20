@@ -281,17 +281,44 @@ int main()
             expect(std::equal(std::begin(array), std::end(array), std::begin(deserializedArray)));
         };
 
-        //        "bounded c style array of structs"_test = [] {
-        //            static_assert(Serializable<Vector2D[2]>);
-        //            static_assert(!Serializable<Vector2D[]>);
-        //
-        //            Vector2D array[] = { { 5, 10 }, { 15, 25 } };
-        //            Vector2D deserializedArray[2];
-        //
-        //            auto serializedArray = serialize(array);
-        //            expect(eq(serializedArray.size(), sizeof(int32_t) * 4));
-        //            deserialize(deserializedArray, serializedArray);
-        //            // expect(std::equal(std::begin(array), std::end(array), std::begin(deserializedArray)));
-        //        };
+        "vector of integers"_test = [] {
+            static_assert(Serializable<std::vector<int32_t>>);
+            static_assert(Serializable<const std::vector<int32_t>>);
+
+            const std::vector<int32_t> vector = { 15, -20, 10, 3435, -4011 };
+
+            auto serializedVector = serialize(vector);
+            expect(eq(serializedVector.size(), sizeof(int32_t) * 6));
+            expect(eq(serializedVector,
+                std::vector<uint8_t>{
+                    0b00000101,
+                    0b00000000,
+                    0b00000000,
+                    0b00000000,
+                    0b00001111,
+                    0b00000000,
+                    0b00000000,
+                    0b00000000,
+                    0b11101100,
+                    0b11111111,
+                    0b11111111,
+                    0b11111111,
+                    0b00001010,
+                    0b00000000,
+                    0b00000000,
+                    0b00000000,
+                    0b01101011,
+                    0b00001101,
+                    0b00000000,
+                    0b00000000,
+                    0b01010101,
+                    0b11110000,
+                    0b11111111,
+                    0b11111111,
+                }));
+
+            auto deserializedVector = deserialize<std::vector<int32_t>>(serializedVector);
+            expect(std::equal(vector.begin(), vector.end(), deserializedVector.begin()));
+        };
     };
 }
