@@ -81,7 +81,7 @@ int main()
             static_assert(Serializable<uint16_t>);
             static_assert(Serializable<uint32_t>);
             static_assert(Serializable<uint64_t>);
-#ifdef __SIZEOF_INT128__
+#ifdef BORSH_HAVE_INTRINSIC_INT128
             static_assert(Serializable<int128_t>);
             static_assert(Serializable<uint128_t>);
 #endif
@@ -140,7 +140,7 @@ int main()
                 std::vector<uint8_t>{ 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b10000000 }));
             expect(eq(deserialize<int64_t>(serializedMin64), INT64_MIN));
 
-#ifdef __SIZEOF_INT128__
+#ifdef BORSH_HAVE_INTRINSIC_INT128
             int128_t max128 = INT128_MAX;
             int128_t min128 = INT128_MIN;
 
@@ -162,18 +162,14 @@ int main()
 
         "float"_test = [] {
             static_assert(Serializable<float>);
-            static_assert(Serializable<double>);
-#ifdef __SIZEOF_INT128__
-            static_assert(Serializable<long double>);
-#endif
-
-            float floatValue = 3.1415927;
+            float floatValue = 3.1415927f;
             auto  serializedFloat = serialize(floatValue);
             expect(eq(serializedFloat.size(), sizeof(float)));
             expect(eq(serializedFloat, std::vector<uint8_t>{ 0b11011011, 0b00001111, 0b01001001, 0b01000000 }));
             auto deserializedFloat = deserialize<float>(serializedFloat);
             expect(eq(deserializedFloat, floatValue));
 
+            static_assert(Serializable<double>);
             double doubleValue = 3.141592653589793;
             auto   serializedDouble = serialize(doubleValue);
             expect(eq(serializedDouble.size(), sizeof(double)));
@@ -182,13 +178,16 @@ int main()
             auto deserializedDouble = deserialize<double>(serializedDouble);
             expect(eq(deserializedDouble, doubleValue));
 
-            long double longDoubleValue = 3.1415926535897932385;
+#ifdef BORSH_HAVE_INTRINSIC_INT128
+            static_assert(Serializable<long double>);
+            long double longDoubleValue = 3.1415926535897932385L;
             auto        serializedLongDouble = serialize(longDoubleValue);
             expect(eq(serializedLongDouble.size(), sizeof(long double)));
             expect(eq(serializedDouble,
                 std::vector<uint8_t>{ 0b00011000, 0b00101101, 0b01000100, 0b01010100, 0b11111011, 0b00100001, 0b00001001, 0b01000000 }));
             auto deserializedLongDouble = deserialize<long double>(serializedLongDouble);
             expect(eq(deserializedLongDouble, longDoubleValue));
+#endif
         };
 
         "bool"_test = [] {
