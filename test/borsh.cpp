@@ -179,7 +179,7 @@ int main()
 
 #ifdef BORSH_HAVE_INTRINSIC_INT128
             static_assert(Serializable<long double>);
-            long double longDoubleValue = 3.1415926535897932385;
+            long double longDoubleValue = 3.1415926535897932385L;
             auto        serializedLongDouble = serialize(longDoubleValue);
             expect(eq(serializedLongDouble.size(), sizeof(long double)));
             expect(eq(serializedDouble,
