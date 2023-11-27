@@ -297,30 +297,6 @@ template <ScalarType T, std::size_t N> void from_bytes(T (&value)[N], const uint
     }
 }
 
-template <SerializableVector T> void from_bytes(T& value, const uint8_t*& buffer)
-{
-    static_assert(!std::is_const_v<T>, "T must not be const");
-
-    const int32_t length = *reinterpret_cast<const int32_t*>(buffer);
-    buffer += sizeof(int32_t);
-
-    value.clear();
-    for (int32_t i = 0; i < length; ++i)
-    {
-        typename T::value_type element;
-        if constexpr (SerializableNonScalar<typename T::value_type>)
-        {
-            element = deserialize<typename T::value_type>(buffer);
-            buffer += sizeof(typename T::value_type);
-        }
-        else
-        {
-            from_bytes(element, buffer);
-        }
-        value.push_back(element);
-    }
-}
-
 class Serializer
 {
 public:
@@ -360,8 +336,7 @@ private:
                 {
                     if constexpr (SerializableNonScalar<typename T::value_type>)
                     {
-                        auto serializedItem = serialize(item, *this);
-                        buffer.insert(buffer.end(), serializedItem.begin(), serializedItem.end());
+                        serialize(item, *this);
                     }
                     else
                     {
@@ -415,7 +390,27 @@ private:
         }
         else
         {
-            if constexpr (ScalarType<T> || ScalarArrayType<T> || SerializableVector<T>)
+            if constexpr (SerializableVector<T>)
+            {
+                const int32_t length = *reinterpret_cast<const int32_t*>(bufferPointerReference);
+                bufferPointerReference += sizeof(int32_t);
+
+                value.clear();
+                for (int32_t i = 0; i < length; ++i)
+                {
+                    typename T::value_type element;
+                    if constexpr (SerializableNonScalar<typename T::value_type>)
+                    {
+                        serialize(element, *this);
+                    }
+                    else
+                    {
+                        from_bytes(element, bufferPointerReference);
+                    }
+                    value.push_back(element);
+                }
+            }
+            else if constexpr (ScalarType<T> || ScalarArrayType<T>)
             {
                 from_bytes(value, bufferPointerReference);
             }

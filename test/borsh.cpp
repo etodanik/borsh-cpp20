@@ -208,7 +208,7 @@ int main()
             auto string = std::string("hello 🚀");
 
             auto serializedString = serialize(string);
-            expect(eq(static_cast<int>(serializedString.size()), 14));
+            expect(eq(serializedString.size(), static_cast<size_t>(14)));
             expect(eq(serializedString,
                 std::vector<uint8_t>{ //
                     // int32_t representation of the string length (little endian)
@@ -324,18 +324,27 @@ int main()
         "vector of structs"_test = [] {
             static_assert(Serializable<std::vector<Line>>);
 
-            const std::vector<Line> vector = { { { 5, 10 }, { 15, 25 }, "my line 1" }, { { 25, 30 }, { 45, 75 }, "my line 2" } };
+            const std::vector<Line> vector = { { { 5, 10 }, { 15, 25 }, "hello 🚀" }, { { 25, 30 }, { 45, 75 }, "olleh 🚀" } };
 
             auto serializedVector = serialize(vector);
-            expect(eq(serializedVector.size(), static_cast<size_t>(55)));
+            expect(eq(serializedVector.size(),
+                static_cast<size_t>(
+                    // the result should be the raw length of the types with prepended length
+                    sizeof(uint32_t)          // length
+                    + sizeof(Vector2D) * 2    // two Vector structs
+                    + static_cast<size_t>(14) // string
+                    + sizeof(Vector2D) * 2    // two Vector structs
+                    + static_cast<size_t>(14) // string
+                    )));
+
             auto deserializedVector = deserialize<std::vector<Line>>(serializedVector);
 
             expect(eq(deserializedVector.at(0).a.x, 5) and eq(deserializedVector.at(0).a.y, 10));
             expect(eq(deserializedVector.at(0).b.x, 15) and eq(deserializedVector.at(0).b.y, 25));
-            expect(eq(deserializedVector.at(0).name, std::string("my line 1")));
+            expect(eq(deserializedVector.at(0).name, std::string("hello 🚀")));
             expect(eq(deserializedVector.at(1).a.x, 25) and eq(deserializedVector.at(1).a.y, 30));
             expect(eq(deserializedVector.at(1).b.x, 45) and eq(deserializedVector.at(1).b.y, 75));
-            expect(eq(deserializedVector.at(1).name, std::string("my line 2")));
+            expect(eq(deserializedVector.at(1).name, std::string("olleh 🚀")));
         };
     };
 }
