@@ -243,16 +243,6 @@ void to_bytes(ScalarArrayType auto const& array, std::vector<uint8_t>& buffer)
     }
 }
 
-void to_bytes(SerializableVector auto const& vector, std::vector<uint8_t>& buffer)
-{
-    append(buffer, static_cast<int32_t>(vector.size()));
-
-    for (auto item : vector)
-    {
-        to_bytes(item, buffer);
-    }
-}
-
 template <NumericType T> void from_bytes(T& value, const uint8_t*& buffer)
 {
     static_assert(!std::is_const_v<T>, "T must not be const");
@@ -305,7 +295,15 @@ template <SerializableVector T> void from_bytes(T& value, const uint8_t*& buffer
     for (int32_t i = 0; i < length; ++i)
     {
         typename T::value_type element;
-        from_bytes(element, buffer);
+        if constexpr (SerializableNonScalar<typename T::value_type>)
+        {
+            element = deserialize<typename T::value_type>(buffer);
+            buffer += sizeof(typename T::value_type);
+        }
+        else
+        {
+            from_bytes(element, buffer);
+        }
         value.push_back(element);
     }
 }
@@ -341,7 +339,24 @@ private:
     {
         if (direction == SerializerDirection::Serialize)
         {
-            if constexpr (ScalarType<T> || ScalarArrayType<T> || SerializableVector<T>)
+            if constexpr (SerializableVector<T>)
+            {
+                append(buffer, static_cast<int32_t>(value.size()));
+
+                for (auto item : value)
+                {
+                    if constexpr (SerializableNonScalar<typename T::value_type>)
+                    {
+                        auto serializedItem = serialize(item, *this);
+                        buffer.insert(buffer.end(), serializedItem.begin(), serializedItem.end());
+                    }
+                    else
+                    {
+                        to_bytes(item, buffer);
+                    }
+                }
+            }
+            else if constexpr (ScalarType<T> || ScalarArrayType<T>)
             {
                 to_bytes(value, buffer);
             }
@@ -360,7 +375,23 @@ private:
     {
         if (direction == SerializerDirection::Serialize)
         {
-            if constexpr (ScalarType<T> || ScalarArrayType<T> || SerializableVector<T>)
+            if constexpr (SerializableVector<T>)
+            {
+                append(buffer, static_cast<int32_t>(value.size()));
+
+                for (auto item : value)
+                {
+                    if constexpr (SerializableNonScalar<typename T::value_type>)
+                    {
+                        serialize(item, *this);
+                    }
+                    else
+                    {
+                        to_bytes(item, buffer);
+                    }
+                }
+            }
+            else if constexpr (ScalarType<T> || ScalarArrayType<T>)
             {
                 to_bytes(value, buffer);
             }

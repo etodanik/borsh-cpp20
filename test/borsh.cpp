@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <vector>
 #include <string>
@@ -319,6 +320,23 @@ int main()
 
             auto deserializedVector = deserialize<std::vector<int32_t>>(serializedVector);
             expect(std::equal(vector.begin(), vector.end(), deserializedVector.begin()));
+        };
+
+        "vector of structs"_test = [] {
+            static_assert(Serializable<std::vector<Line>>);
+
+            const std::vector<Line> vector = { { { 5, 10 }, { 15, 25 }, "my line 1" }, { { 25, 30 }, { 45, 75 }, "my line 2" } };
+
+            auto serializedVector = serialize(vector);
+            expect(eq(serializedVector.size(), static_cast<size_t>(55)));
+            auto deserializedVector = deserialize<std::vector<Line>>(serializedVector);
+
+            expect(eq(deserializedVector.at(0).a.x, 5) and eq(deserializedVector.at(0).a.y, 10));
+            expect(eq(deserializedVector.at(0).b.x, 15) and eq(deserializedVector.at(0).b.y, 25));
+            expect(eq(deserializedVector.at(0).name, std::string("my line 1")));
+            expect(eq(deserializedVector.at(1).a.x, 25) and eq(deserializedVector.at(1).a.y, 30));
+            expect(eq(deserializedVector.at(1).b.x, 45) and eq(deserializedVector.at(1).b.y, 75));
+            expect(eq(deserializedVector.at(1).name, std::string("my line 2")));
         };
     };
 }
