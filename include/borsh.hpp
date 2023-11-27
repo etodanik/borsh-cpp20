@@ -27,18 +27,24 @@
 #include <cstdint>
 #include <algorithm>
 #include <vector>
+#include <cmath>
 #include <memory>
 
 #ifdef __SIZEOF_INT128__
+#if (defined(__clang__) && !defined(_WIN32)) || (defined(__CUDACC__) && __CUDACC_VER_MAJOR__ >= 9) \
+    || (defined(__GNUC__) && !defined(__clang__) && !defined(__CUDACC__))
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#define BORSH_HAVE_INTRINSIC_INT128 1
 using uint128_t = unsigned __int128;
 using int128_t = __int128;
-
 #ifndef UINT128_MAX
 #define UINT128_MAX ((uint128_t)(-1))
 #define INT128_MAX ((int128_t)(UINT128_MAX >> 1))
 #define INT128_MIN (-INT128_MAX - 1)
 #endif
-
+#pragma GCC diagnostic pop
+#endif
 #endif
 
 namespace borsh
@@ -52,10 +58,14 @@ enum SerializerDirection
 };
 
 template <typename T>
+#ifdef BORSH_HAVE_INTRINSIC_INT128
+concept IntegralType = std::is_integral_v<T> || std::ranges::__detail::__is_int128<T>;
+#else
 concept IntegralType = std::is_integral_v<T>;
+#endif
 
 template <typename T>
-#ifdef __SIZEOF_INT128__
+#ifdef BORSH_HAVE_INTRINSIC_INT128
 concept FloatType = std::is_floating_point_v<T>;
 #else
 concept FloatType = std::is_same_v<T, float> || std::is_same_v<T, double>;
@@ -145,14 +155,16 @@ template <FloatType T> auto float_to_int(T value) -> auto
     }
     else if constexpr (std::is_same_v<T, long double>)
     {
-        if constexpr (sizeof(long double) == sizeof(int128_t))
-        {
-            return std::bit_cast<int128_t>(value);
-        }
-        else if constexpr (sizeof(long double) == sizeof(int64_t))
+        if constexpr (sizeof(long double) == sizeof(int64_t))
         {
             return std::bit_cast<int64_t>(value);
         }
+#ifdef BORSH_HAVE_INTRINSIC_INT128
+        else if constexpr (sizeof(long double) == sizeof(int128_t))
+        {
+            return std::bit_cast<int128_t>(value);
+        }
+#endif
         else
         {
             static_assert(!std::is_same_v<T, T>, "Float on this target platform is of an unsupported length");
@@ -174,11 +186,12 @@ template <IntegralType T> auto int_to_float(T value) -> auto
     {
         return std::bit_cast<double>(value);
     }
-    else if constexpr (std::is_same_v<T, long double>
-        && ((sizeof(long double) == sizeof(int64_t)) || (sizeof(long double) == sizeof(int128_t))))
+#ifdef BORSH_HAVE_INTRINSIC_INT128
+    else if constexpr (std::is_same_v<T, int128_t> && (sizeof(long double) == sizeof(int64_t) || sizeof(long double) == sizeof(int128_t)))
     {
         return std::bit_cast<long double>(value);
     }
+#endif
     else
     {
         static_assert(!std::is_same_v<T, T>, "Unsupported type for int_to_float or type is a non standard length on target platform");
@@ -212,7 +225,7 @@ void to_bytes(IntegralType auto const& value, std::vector<uint8_t>& buffer)
 
 void to_bytes(FloatType auto const& value, std::vector<uint8_t>& buffer)
 {
-    if (isnan(value)) [[unlikely]]
+    if (std::isnan(value)) [[unlikely]]
     {
         throw std::invalid_argument("NaN is not allowed");
     }
