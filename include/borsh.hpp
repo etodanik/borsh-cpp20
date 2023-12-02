@@ -58,7 +58,7 @@ enum SerializerDirection
 };
 
 template <typename T>
-#ifdef BORSH_HAVE_INTRINSIC_INT128
+#if (defined(__GNUC__) && !defined(__clang__) && !defined(__INTEL_COMPILER))
 concept IntegralType = std::is_integral_v<T> || std::ranges::__detail::__is_int128<T>;
 #else
 concept IntegralType = std::is_integral_v<T>;
