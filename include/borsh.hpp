@@ -15,6 +15,10 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //
 
+#pragma once
+#ifndef BORSH_CPP20_H
+#define BORSH_CPP20_H
+
 #include <array>
 #include <cstddef>
 #include <cstring>
@@ -499,3 +503,5 @@ void deserialize(SerializableNonScalarArray auto (&value)[], std::vector<uint8_t
 }
 
 } // namespace borsh
+
+#endif
