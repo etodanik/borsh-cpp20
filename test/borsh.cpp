@@ -19,6 +19,12 @@ struct Line
     std::string name;
 };
 
+struct Box
+{
+    std::array<int, 2> dimensions;
+    std::string name;
+};
+
 auto serialize(Vector2D& data, borsh::Serializer& serializer)
 {
     return serializer(data.x, data.y);
@@ -27,6 +33,11 @@ auto serialize(Vector2D& data, borsh::Serializer& serializer)
 auto serialize(Line& data, borsh::Serializer& serializer)
 {
     return serializer(data.a, data.b, data.name);
+}
+
+auto serialize(Box& data, borsh::Serializer& serializer)
+{
+    return serializer(data.dimensions, data.name);
 }
 
 int main()
@@ -229,6 +240,17 @@ int main()
             expect(eq(deserialized.x, 10) and eq(deserialized.y, 20));
         };
 
+        "struct with std::array"_test = [] {
+            static_assert(Serializable<Box>);
+
+            Box point{ {10, 20}, "my box" };
+            auto     buffer = serialize(point);
+            expect(eq(buffer.size(), (sizeof(int32_t) * 2) + 10));
+            auto deserialized = deserialize<Box>(buffer);
+            expect(eq(deserialized.dimensions.at(0), 10) and eq(deserialized.dimensions.at(1), 20));
+            expect(eq(deserialized.name, std::string("my box")));
+        };
+
         "nested struct"_test = [] {
             static_assert(Serializable<Line>);
 
@@ -315,7 +337,7 @@ int main()
                     0b11111111,
                     0b11111111,
                 }));
-            auto deserializedArray = deserialize<std::array<uint32_t, 5>>(serializedArray);
+            auto deserializedArray = deserialize<std::array<int32_t, 5>>(serializedArray);
             expect(std::equal(std::begin(array), std::end(array), std::begin(deserializedArray)));
         };
 
