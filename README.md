@@ -25,7 +25,7 @@ tested to be binary compatible with the borsh specification:
 - [x] Bool
 - [x] Floats (`float`, `double`, `long double`)
 - [ ] Unit (`std::monostate`), a noop in Borsh
-- [x] Fixed sized arrays (`C-style array[]`)
+- [x] Fixed sized arrays (`C-style array[]`, `std::array`)
 - [x] Dynamic sized array (`std::vector`)
 - [x] Struct
 - [x] Named fields

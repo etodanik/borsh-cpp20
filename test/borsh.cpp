@@ -280,6 +280,45 @@ int main()
             expect(std::equal(std::begin(array), std::end(array), std::begin(deserializedArray)));
         };
 
+        "std::array of integers"_test = [] {
+            static_assert(!ScalarArrayType<std::array<uint32_t, 10>>);
+            static_assert(!NonScalarArrayType<std::array<uint32_t, 10>>);
+            static_assert(ScalarStdArrayType<std::array<uint32_t, 10>>);
+            static_assert(!NonScalarStdArrayType<std::array<uint32_t, 10>>);
+            static_assert(Serializable<std::array<uint32_t, 10>>);
+            static_assert(Serializable<const std::array<uint32_t, 15>>);
+
+            const std::array array = { 15, -20, 10, 3435, -4011 };
+
+            auto serializedArray = serialize(array);
+            expect(eq(serializedArray.size(), sizeof(int32_t) * 5));
+            expect(eq(serializedArray,
+                std::vector<uint8_t>{
+                    0b00001111,
+                    0b00000000,
+                    0b00000000,
+                    0b00000000,
+                    0b11101100,
+                    0b11111111,
+                    0b11111111,
+                    0b11111111,
+                    0b00001010,
+                    0b00000000,
+                    0b00000000,
+                    0b00000000,
+                    0b01101011,
+                    0b00001101,
+                    0b00000000,
+                    0b00000000,
+                    0b01010101,
+                    0b11110000,
+                    0b11111111,
+                    0b11111111,
+                }));
+            auto deserializedArray = deserialize<std::array<uint32_t, 5>>(serializedArray);
+            expect(std::equal(std::begin(array), std::end(array), std::begin(deserializedArray)));
+        };
+
         "vector of integers"_test = [] {
             static_assert(Serializable<std::vector<int32_t>>);
             static_assert(Serializable<const std::vector<int32_t>>);

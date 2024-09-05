@@ -58,7 +58,7 @@ private:
                     }
                 }
             }
-            else if constexpr (ScalarType<T> || ScalarArrayType<T>)
+            else if constexpr (ScalarType<T> || ScalarArrayType<T> || ScalarStdArrayType<T>)
             {
                 to_bytes(value, buffer);
             }
@@ -93,7 +93,7 @@ private:
                     }
                 }
             }
-            else if constexpr (ScalarType<T> || ScalarArrayType<T>)
+            else if constexpr (ScalarType<T> || ScalarArrayType<T> || ScalarStdArrayType<T>)
             {
                 to_bytes(value, buffer);
             }
@@ -124,7 +124,7 @@ private:
                     value.push_back(element);
                 }
             }
-            else if constexpr (ScalarType<T> || ScalarArrayType<T>)
+            else if constexpr (ScalarType<T> || ScalarArrayType<T> || ScalarStdArrayType<T>)
             {
                 from_bytes(value, bufferPointerReference);
             }

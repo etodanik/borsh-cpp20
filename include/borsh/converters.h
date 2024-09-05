@@ -48,6 +48,14 @@ void to_bytes(ScalarArrayType auto const& array, std::vector<uint8_t>& buffer)
     }
 }
 
+void to_bytes(ScalarStdArrayType auto const& array, std::vector<uint8_t>& buffer)
+{
+    for (auto item : array)
+    {
+        to_bytes(item, buffer);
+    }
+}
+
 template <NumericType T> void from_bytes(T& value, const uint8_t*& buffer)
 {
     static_assert(!std::is_const_v<T>, "T must not be const");
@@ -82,6 +90,17 @@ template <StringType T> void from_bytes(T& value, const uint8_t*& buffer)
 template <ScalarType T, std::size_t N> void from_bytes(T (&value)[N], const uint8_t*& buffer)
 {
     static_assert(!std::is_const_v<decltype(value)>, "T must not be const");
+
+    for (auto& element : value)
+    {
+        from_bytes(element, buffer);
+    }
+}
+
+template <typename T, std::size_t N>
+void from_bytes(std::array<T, N>& value, const uint8_t*& buffer)
+{
+    static_assert(!std::is_const_v<T>, "T must not be const");
 
     for (auto& element : value)
     {

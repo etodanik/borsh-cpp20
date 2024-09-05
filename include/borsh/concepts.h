@@ -81,11 +81,53 @@ template <typename T>
 concept ArrayType = ScalarArrayType<T> || NonScalarArrayType<T>;
 
 template <typename T>
-concept SerializableElement = requires(T t, Serializer& s) { serialize(t, s); };
+struct is_std_array : std::false_type {};
+
+template <typename T, std::size_t N>
+struct is_std_array<std::array<T, N>> : std::true_type {};
+
+template <typename T>
+inline constexpr bool is_std_array_v = is_std_array<T>::value;
+
+template <typename T>
+using remove_cv_and_array_t = std::remove_cv_t<typename T::value_type>;
+
+template <typename T, typename C>
+concept is_same_remove_array_v = std::is_same_v<remove_cv_and_array_t<T>, C>;
+
+template <typename T>
+concept CharStdArrayType = is_std_array_v<T> && (is_same_remove_array_v<T, char> || is_same_remove_array_v<T, unsigned char>);
+
+template <typename T>
+concept IntegralStdArrayType = is_std_array_v<T> && IntegralType<remove_cv_and_array_t<T>>;
+
+template <typename T>
+concept FloatStdArrayType = is_std_array_v<T> && FloatType<remove_cv_and_array_t<T>>;
+
+template <typename T>
+concept NumericStdArrayType = IntegralStdArrayType<T> || FloatStdArrayType<T>;
+
+template <typename T>
+concept ScalarStdArrayType = is_std_array_v<T> && ScalarType<remove_cv_and_array_t<T>>;
+
+template <typename T>
+concept NonScalarStdArrayType = is_std_array_v<T> && !ScalarType<remove_cv_and_array_t<T>>;
+
+template <typename T>
+concept StdArrayType = ScalarStdArrayType<T> || NonScalarStdArrayType<T>;
+
+template <typename T>
+concept SerializableElement = requires(std::remove_cv_t<T> t, Serializer& s) { serialize(t, s); };
 
 template <typename T>
 concept SerializableArray =
     requires(T (&array)[], Serializer& s) { serialize(array, s); } && SerializableElement<remove_extent_and_cv_t<T>>;
+
+template <typename T>
+concept SerializableStdArray =
+    StdArrayType<T> &&
+    requires(std::remove_cv_t<T> array, Serializer& s) { serialize(array, s); } &&
+    SerializableElement<remove_cv_and_array_t<T>>;
 
 template <typename T>
 concept SerializableVector = requires(T t) {
@@ -100,7 +142,7 @@ concept SerializableVectorVector = requires(T t) {
 };
 
 template <typename T>
-concept Serializable = SerializableElement<T> || SerializableArray<T> || SerializableVector<T> || SerializableVectorVector<T>;
+concept Serializable = SerializableElement<T> || SerializableArray<T> || SerializableStdArray<T> || SerializableVector<T> || SerializableVectorVector<T>;
 
 template <typename T>
 concept SerializableNonScalar = SerializableElement<T> && !ScalarType<T>;

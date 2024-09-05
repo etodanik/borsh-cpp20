@@ -19,6 +19,8 @@
 #ifndef BORSH_CPP20_TEMPLATES_H
 #define BORSH_CPP20_TEMPLATES_H
 
+#include "concepts.h"
+
 #include <array>
 #include <cstddef>
 #include <cstring>
@@ -52,8 +54,15 @@ auto serialize(SerializableVector auto& value, Serializer& serializer)
     return serializer(value);
 }
 
+template <typename T, std::size_t N>
+auto serialize(std::array<T, N>& value, Serializer& serializer)
+    requires Serializable<T>
+{
+    return serializer(value);
+}
+
 template <typename T>
-    requires ScalarType<T> || ScalarArrayType<T>
+    requires ScalarType<T> || ScalarArrayType<T> || ScalarStdArrayType<T>
 std::vector<uint8_t> serialize(const T& value)
 {
     std::vector<uint8_t> buffer;
