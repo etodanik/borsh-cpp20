@@ -10,6 +10,7 @@ for C++ at all, so this code is an attempt to fill that gap.
 ## Features
 
 * Copy-free serialization and deserialization.
+* No dependency on exceptions.
 * Tests cover supported types, malformed input, and trailing bytes.
 * CI builds and tests the library with GCC, LLVM Clang, Apple Clang, and MSVC.
 
