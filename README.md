@@ -24,10 +24,10 @@ Scalar types serialize and deserialize by simply calling `borsh::serialize` or `
 #include <vector>
 
 std::int32_t value_to_serialize{35};
-std::vector<std::uint8_t> bytes;
-borsh::Error serialization_error = borsh::serialize(value_to_serialize, bytes);
+std::vector<std::uint8_t> serialized_value{};
+borsh::Error serialization_error = borsh::serialize(value_to_serialize, serialized_value);
 std::int32_t deserialized_value{};
-borsh::Error deserialization_error = borsh::deserialize(deserialized_value, bytes);
+borsh::Error deserialization_error = borsh::deserialize(serialized_value, deserialized_value);
 ```
 
 Custom struct types will require some unavoidable boilerplate in the form of enumerating the struct fields for the custom type:
