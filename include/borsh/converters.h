@@ -2,7 +2,19 @@
 #ifndef BORSH_CPP20_CONVERTERS_H
 #define BORSH_CPP20_CONVERTERS_H
 
+#include "concepts.h"
+#include "utils.h"
+
+#include <array>
+#include <bit>
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
 #include <limits>
+#include <string>
+#include <type_traits>
+#include <vector>
 
 namespace borsh
 {

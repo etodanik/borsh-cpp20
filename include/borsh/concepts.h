@@ -16,6 +16,22 @@
 namespace borsh
 {
 
+namespace detail
+{
+
+template <typename T>
+inline constexpr bool is_intrinsic_int128_v = false;
+
+#ifdef BORSH_HAVE_INTRINSIC_INT128
+template <>
+inline constexpr bool is_intrinsic_int128_v<int128_t> = true;
+
+template <>
+inline constexpr bool is_intrinsic_int128_v<uint128_t> = true;
+#endif
+
+} // namespace detail
+
 class Encoder;
 class Decoder;
 
@@ -30,11 +46,7 @@ enum class Error : uint8_t
 };
 
 template <typename T>
-#if (defined(__GNUC__) && !defined(__clang__) && !defined(__INTEL_COMPILER))
-concept IntegralType = std::is_integral_v<T> || std::ranges::__detail::__is_int128<T>;
-#else
-concept IntegralType = std::is_integral_v<T>;
-#endif
+concept IntegralType = std::is_integral_v<T> || detail::is_intrinsic_int128_v<std::remove_cv_t<T>>;
 
 template <typename T>
 concept FloatType = std::is_same_v<T, float> || std::is_same_v<T, double>;

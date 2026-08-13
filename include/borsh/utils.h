@@ -2,6 +2,16 @@
 #ifndef BORSH_CPP20_UTILS_H
 #define BORSH_CPP20_UTILS_H
 
+#include "concepts.h"
+
+#include <algorithm>
+#include <array>
+#include <bit>
+#include <cstddef>
+#include <cstdint>
+#include <type_traits>
+#include <vector>
+
 namespace borsh
 {
 
