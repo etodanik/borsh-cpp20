@@ -12,6 +12,8 @@ project(
         LANGUAGES CXX
 )
 
+include(GNUInstallDirs)
+
 if(NOT DEFINED CMAKE_CXX_STANDARD)
     set(CMAKE_CXX_STANDARD
             20
@@ -26,7 +28,7 @@ option(BORSH_ENABLE_SANITIZERS "Run static analysis" OFF)
 option(BORSH_BUILD_BENCHMARKS "Build the benchmarks" OFF)
 option(BORSH_BUILD_EXAMPLES "Build the examples" ${PROJECT_IS_TOP_LEVEL})
 option(BORSH_BUILD_TESTS "Build the tests" ${PROJECT_IS_TOP_LEVEL})
-option(BORSH_USE_WARNINGS_AS_ERORS "Build the tests" ${PROJECT_IS_TOP_LEVEL})
+option(BORSH_USE_WARNINGS_AS_ERRORS "Build the tests" ${PROJECT_IS_TOP_LEVEL})
 option(BORSH_ALLOW_CPM_USE "Do not reach out across network for CPM" ON)
 
 if(NOT CMAKE_SKIP_INSTALL_RULES)
@@ -48,10 +50,10 @@ if(NOT CMAKE_SKIP_INSTALL_RULES)
 endif()
 
 add_library(borsh INTERFACE)
-target_include_directories(borsh INTERFACE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:${INCLUDE_INSTALL_DIR}>)
+target_include_directories(borsh INTERFACE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 target_compile_features(borsh INTERFACE cxx_std_20)
 
-if(BORSH_USE_WARNINGS_AS_ERORS)
+if(BORSH_USE_WARNINGS_AS_ERRORS)
     include(cmake/WarningsAsErrors.cmake)
 endif()
 
@@ -70,7 +72,7 @@ if(NOT CMAKE_SKIP_INSTALL_RULES)
             VERSION ${PROJECT_VERSION}
             BINARY_DIR ${PROJECT_BINARY_DIR}
             INCLUDE_DIR ${PROJECT_SOURCE_DIR}/include
-            INCLUDE_DESTINATION ${INCLUDE_INSTALL_DIR}
+            INCLUDE_DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
             # XXX variant: DISABLE_VERSION_SUFFIX YES
             COMPATIBILITY SameMajorVersion
             # Note: only if needed i.e. DEPENDENCIES "fmt 7.1.3; span"

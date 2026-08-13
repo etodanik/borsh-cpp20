@@ -23,103 +23,103 @@
 
 #include <array>
 #include <cstddef>
-#include <cstring>
-#include <memory>
 #include <vector>
-#include <type_traits>
-#include <string>
-#include <stdexcept>
-#include <bit>
 #include <cstdint>
 #include <algorithm>
-#include <vector>
-#include <cmath>
-#include <memory>
 
 namespace borsh
 {
 
-auto serialize(ArrayType auto (&array)[], Serializer& serializer)
+constexpr Error ensure_consumed(std::size_t remaining) noexcept
 {
-    return serializer(array);
-}
-
-auto serialize(ScalarType auto& value, Serializer& serializer)
-{
-    return serializer(value);
-}
-
-auto serialize(SerializableVector auto& value, Serializer& serializer)
-{
-    return serializer(value);
+    return remaining ? Error::TrailingBytes : Error::None;
 }
 
 template <typename T, std::size_t N>
-auto serialize(std::array<T, N>& value, Serializer& serializer)
+Error serialize(const T (&array)[N], Encoder& encoder)
     requires Serializable<T>
 {
-    return serializer(value);
+    for (const auto& item : array)
+    {
+        encoder(item);
+    }
+    return encoder.status();
 }
 
-template <typename T>
-    requires ScalarType<T> || ScalarArrayType<T> || ScalarStdArrayType<T>
-std::vector<uint8_t> serialize(const T& value)
+Error serialize(const ScalarType auto& value, Encoder& encoder)
 {
-    std::vector<uint8_t> buffer;
-    to_bytes(value, buffer);
-    return buffer;
+    return encoder(value);
 }
 
-template <SerializableNonScalar T> std::vector<uint8_t> serialize(T& object)
+Error serialize(const SerializableVector auto& value, Encoder& encoder)
 {
-    std::vector<uint8_t> buffer;
-    const uint8_t*       data = buffer.data();
-    Serializer           serializer(buffer, data, SerializerDirection::Serialize);
-    serialize(object, serializer);
-    return buffer;
-}
-
-std::vector<uint8_t> serialize(SerializableNonScalarArray auto (&array)[])
-{
-    std::vector<uint8_t> buffer;
-    const uint8_t*       data = buffer.data();
-    Serializer           serializer(buffer, data, SerializerDirection::Serialize);
-    serialize(array, serializer);
-    return buffer;
-}
-
-template <typename T>
-    requires ScalarType<T>
-T deserialize(std::vector<uint8_t>& buffer)
-{
-    const uint8_t* data = buffer.data();
-    T              value;
-    from_bytes(value, data);
-    return value;
+    return encoder(value);
 }
 
 template <typename T, std::size_t N>
-    requires ScalarType<T>
-void deserialize(T (&value)[N], std::vector<uint8_t>& buffer)
+Error serialize(const std::array<T, N>& value, Encoder& encoder)
+    requires Serializable<T>
 {
-    const uint8_t* data = buffer.data();
-    from_bytes(value, data);
+    for (const auto& item : value)
+    {
+        encoder(item);
+    }
+    return encoder.status();
 }
 
-template <SerializableNonScalar T> T deserialize(std::vector<uint8_t>& buffer)
+template <typename T, std::size_t N>
+Error deserialize(T (&array)[N], Decoder& decoder)
+    requires Serializable<T>
 {
-    const uint8_t* data = buffer.data();
-    auto           object = T{};
-    Serializer     serializer(buffer, data, SerializerDirection::Deserialize);
-    serialize(object, serializer);
-    return object;
+    for (auto& item : array)
+    {
+        decoder(item);
+    }
+    return decoder.status();
 }
 
-void deserialize(SerializableNonScalarArray auto (&value)[], std::vector<uint8_t>& buffer)
+Error deserialize(ScalarType auto& value, Decoder& decoder)
 {
-    const uint8_t* data = buffer.data();
-    Serializer     serializer(buffer, data, SerializerDirection::Deserialize);
-    serialize(value, serializer);
+    return decoder(value);
+}
+
+Error deserialize(SerializableVector auto& value, Decoder& decoder)
+{
+    return decoder(value);
+}
+
+template <typename T, std::size_t N>
+Error deserialize(std::array<T, N>& value, Decoder& decoder)
+    requires Serializable<T>
+{
+    for (auto& item : value)
+    {
+        decoder(item);
+    }
+    return decoder.status();
+}
+
+template <typename T> [[nodiscard]] Error serialize(const T& value, std::vector<uint8_t>& output)
+{
+    output.clear();
+    Encoder encoder(output);
+    auto    error = encoder(value);
+    if (error != Error::None)
+    {
+        output.clear();
+    }
+    return error;
+}
+
+template <typename T> [[nodiscard]] Error deserialize(T& output, const std::vector<uint8_t>& buffer)
+{
+    Decoder decoder(buffer);
+    auto    error = decoder(output);
+    if (error == Error::None)
+    {
+        error = ensure_consumed(decoder.remaining_bytes());
+    }
+    return error;
 }
 
 } // namespace borsh

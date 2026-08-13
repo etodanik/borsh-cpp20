@@ -24,6 +24,5 @@
 #include "borsh/converters.h"
 #include "borsh/serializer.h"
 #include "borsh/templates.h"
-#include "boost/ut.hpp"
 
 #endif

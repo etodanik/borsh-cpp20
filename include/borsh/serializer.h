@@ -2,136 +2,125 @@
 #ifndef BORSH_CPP20_SERIALIZER_H
 #define BORSH_CPP20_SERIALIZER_H
 
+#include <utility>
+
 namespace borsh
 {
 
-enum SerializerDirection
-{
-    Serialize = 0,
-    Deserialize = 1,
-};
-
-class Serializer
+class Encoder
 {
 public:
-    explicit Serializer(std::vector<uint8_t>& inBuffer, const uint8_t*& inBufferPointerReference, SerializerDirection inDirection)
-        : direction(inDirection), buffer(inBuffer), bufferPointerReference(inBufferPointerReference)
-    {
-    }
+    explicit Encoder(std::vector<uint8_t>& output) : buffer(output) {}
 
-    template <typename... Args> Serializer& operator()(Args&... args)
+    template <typename... Args> Error operator()(const Args&... args)
     {
         (visit(args), ...);
-        return *this;
+        return error;
     }
+
+    [[nodiscard]] constexpr Error status() const noexcept { return error; }
 
 private:
-    const SerializerDirection direction;
-    std::vector<uint8_t>&     buffer;
-    const uint8_t*&           bufferPointerReference;
+    std::vector<uint8_t>& buffer;
+    Error                 error = Error::None;
 
-    /**
-     * This handles the execution path for the compiler where a const variable was passed to serialize().
-     * Normally, the compiler would not have access to `direction` at compile-time, therefore trying to
-     * explore the deserialization code path and returning a variety of errors. This helps prevent that
-     * and offloads the undesirable situation to an exception.
-     * @tparam T
-     * @param value
-     */
     template <typename T> void visit(const T& value)
     {
-        if (direction == SerializerDirection::Serialize)
+        if (error != Error::None)
         {
-            if constexpr (SerializableVector<T>)
+            return;
+        }
+        if constexpr (SerializableVector<T>)
+        {
+            error = to_bytes_size(value.size(), buffer);
+            for (const auto& element : value)
             {
-                append(buffer, static_cast<int32_t>(value.size()));
-
-                for (auto item : value)
+                if (error != Error::None)
                 {
-                    if constexpr (SerializableNonScalar<typename T::value_type>)
-                    {
-                        serialize(item, *this);
-                    }
-                    else
-                    {
-                        to_bytes(item, buffer);
-                    }
+                    return;
+                }
+                if constexpr (SerializableNonScalar<typename T::value_type>)
+                {
+                    error = serialize(element, *this);
+                }
+                else
+                {
+                    error = to_bytes(element, buffer);
                 }
             }
-            else if constexpr (ScalarType<T> || ScalarArrayType<T> || ScalarStdArrayType<T>)
-            {
-                to_bytes(value, buffer);
-            }
-            else
-            {
-                serialize(value, *this);
-            }
         }
-        else [[unlikely]]
+        else if constexpr (ScalarType<T> || ScalarArrayType<T> || ScalarStdArrayType<T>)
         {
-            throw std::runtime_error("Cannot deserialize into a const object");
-        }
-    }
-
-    template <typename T> void visit(T& value)
-    {
-        if (direction == SerializerDirection::Serialize)
-        {
-            if constexpr (SerializableVector<T>)
-            {
-                append(buffer, static_cast<int32_t>(value.size()));
-
-                for (auto item : value)
-                {
-                    if constexpr (SerializableNonScalar<typename T::value_type>)
-                    {
-                        serialize(item, *this);
-                    }
-                    else
-                    {
-                        to_bytes(item, buffer);
-                    }
-                }
-            }
-            else if constexpr (ScalarType<T> || ScalarArrayType<T> || ScalarStdArrayType<T>)
-            {
-                to_bytes(value, buffer);
-            }
-            else
-            {
-                serialize(value, *this);
-            }
+            error = to_bytes(value, buffer);
         }
         else
         {
-            if constexpr (SerializableVector<T>)
-            {
-                const int32_t length = *reinterpret_cast<const int32_t*>(bufferPointerReference);
-                bufferPointerReference += sizeof(int32_t);
+            error = serialize(value, *this);
+        }
+    }
+};
 
-                value.clear();
-                for (int32_t i = 0; i < length; ++i)
+class Decoder
+{
+public:
+    explicit Decoder(const std::vector<uint8_t>& input) : buffer(input.data()), remaining(input.size()) {}
+
+    template <typename... Args> Error operator()(Args&... args)
+    {
+        (visit(args), ...);
+        return error;
+    }
+
+    [[nodiscard]] constexpr std::size_t remaining_bytes() const noexcept { return remaining; }
+    [[nodiscard]] constexpr Error       status() const noexcept { return error; }
+
+private:
+    const uint8_t* buffer;
+    std::size_t    remaining;
+    Error          error = Error::None;
+
+    template <typename T> void visit(T& value)
+    {
+        if (error != Error::None)
+        {
+            return;
+        }
+        if constexpr (SerializableVector<T>)
+        {
+            uint32_t length;
+            error = from_bytes(length, buffer, remaining);
+            if (error != Error::None || length > remaining)
+            {
+                error = Error::UnexpectedEnd;
+                return;
+            }
+
+            value.clear();
+            for (uint32_t i = 0; i < length; ++i)
+            {
+                typename T::value_type element{};
+                if constexpr (SerializableNonScalar<typename T::value_type>)
                 {
-                    typename T::value_type element;
-                    if constexpr (SerializableNonScalar<typename T::value_type>)
-                    {
-                        serialize(element, *this);
-                    }
-                    else
-                    {
-                        from_bytes(element, bufferPointerReference);
-                    }
-                    value.push_back(element);
+                    error = deserialize(element, *this);
                 }
+                else
+                {
+                    error = from_bytes(element, buffer, remaining);
+                }
+                if (error != Error::None)
+                {
+                    return;
+                }
+                value.push_back(std::move(element));
             }
-            else if constexpr (ScalarType<T> || ScalarArrayType<T> || ScalarStdArrayType<T>)
-            {
-                from_bytes(value, bufferPointerReference);
-            }
-            else
-            {
-                serialize(value, *this);
-            }
+        }
+        else if constexpr (ScalarType<T> || ScalarArrayType<T> || ScalarStdArrayType<T>)
+        {
+            error = from_bytes(value, buffer, remaining);
+        }
+        else
+        {
+            error = deserialize(value, *this);
         }
     }
 };

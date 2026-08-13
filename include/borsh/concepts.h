@@ -3,26 +3,31 @@
 #define BORSH_CPP20_CONCEPTS_H
 
 #include <array>
+#include <concepts>
 #include <cstddef>
-#include <cstring>
-#include <memory>
+#include <cstdint>
 #include <vector>
 #include <type_traits>
 #include <string>
-#include <stdexcept>
-#include <bit>
-#include <cstdint>
 #include <algorithm>
-#include <vector>
-#include <cmath>
-#include <memory>
 
 #include "int128.h"
 
 namespace borsh
 {
 
-class Serializer;
+class Encoder;
+class Decoder;
+
+enum class Error : uint8_t
+{
+    None,
+    UnexpectedEnd,
+    TrailingBytes,
+    InvalidBool,
+    InvalidFloat,
+    LengthOverflow,
+};
 
 template <typename T>
 #if (defined(__GNUC__) && !defined(__clang__) && !defined(__INTEL_COMPILER))
@@ -32,11 +37,7 @@ concept IntegralType = std::is_integral_v<T>;
 #endif
 
 template <typename T>
-#ifdef BORSH_HAVE_INTRINSIC_INT128
-concept FloatType = std::is_floating_point_v<T>;
-#else
 concept FloatType = std::is_same_v<T, float> || std::is_same_v<T, double>;
-#endif
 
 template <typename T>
 concept NumericType = IntegralType<T> || FloatType<T>;
@@ -117,17 +118,16 @@ template <typename T>
 concept StdArrayType = ScalarStdArrayType<T> || NonScalarStdArrayType<T>;
 
 template <typename T>
-concept SerializableElement = requires(std::remove_cv_t<T> t, Serializer& s) { serialize(t, s); };
+concept SerializableElement = requires(const std::remove_cv_t<T> input, std::remove_cv_t<T> output, Encoder& encoder, Decoder& decoder) {
+    { serialize(input, encoder) } -> std::same_as<Error>;
+    { deserialize(output, decoder) } -> std::same_as<Error>;
+};
 
 template <typename T>
-concept SerializableArray =
-    requires(T (&array)[], Serializer& s) { serialize(array, s); } && SerializableElement<remove_extent_and_cv_t<T>>;
+concept SerializableArray = ArrayType<T> && SerializableElement<remove_extent_and_cv_t<T>>;
 
 template <typename T>
-concept SerializableStdArray =
-    StdArrayType<T> &&
-    requires(std::remove_cv_t<T> array, Serializer& s) { serialize(array, s); } &&
-    SerializableElement<remove_cv_and_array_t<T>>;
+concept SerializableStdArray = StdArrayType<T> && SerializableElement<remove_cv_and_array_t<T>>;
 
 template <typename T>
 concept SerializableVector = requires(T t) {
